@@ -2,12 +2,10 @@
 
 
 # EMPLOYEE ATTRITION ANALYSIS
-Final Presentation of Craft Breweries and Beers 
+Final Presentation of Employee Attrition Aalysis
 ## AUTHORS : PEARLY PAUL AND KEVIN ALBRIGHT
 ## INTRODUCTION
-In the below report,We have been provided two data sets for various `beers` and the `breweries` that produce them in the US.
-Our team had to do an exploratory Data Analysis on the data provided to come up with useful insights.
-We were provided with two separate data sets, one with details of the beers and and the other with the details of the breweries around the USA.
+DDSAnalytics is an analytics company that specializes in talent management solutions for Fortune 100 companies. Talent management is defined as the iterative process of developing and retaining employees. It may include workforce planning, employee training programs, identifying high-potential employees and reducing/preventing voluntary employee turnover (attrition). To gain a competitive edge over its competition, DDSAnalytics is planning to leverage data science for talent management. The executive leadership has identified predicting employee turnover as its first application of data science for talent management. Before the business green lights the project, they have tasked your data science team to conduct an analysis of existing employee data. 
 ## STRUCTURE OF OF THE GITHUB PROFILE
 Our github profile is organized in the below structure.
 **Profile  Link : <<Add our Link >>**

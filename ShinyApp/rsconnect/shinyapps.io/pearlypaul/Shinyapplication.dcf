@@ -1,0 +1,13 @@
+name: Shinyapplication
+title: Shinyapplication
+username:
+account: pearlypaul
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4381443
+bundleId: 4897361
+url: https://pearlypaul.shinyapps.io/Shinyapplication/
+when: 1628299326.17069
+lastSyncTime: 1628299326.17069
+asMultiple: FALSE
+asStatic: FALSE

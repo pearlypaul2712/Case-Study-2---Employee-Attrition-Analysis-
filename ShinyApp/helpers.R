@@ -1,0 +1,6 @@
+library(shiny)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(wesanderson)
+library(ggthemes)

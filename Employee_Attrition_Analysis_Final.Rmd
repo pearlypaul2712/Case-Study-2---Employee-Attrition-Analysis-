@@ -1,0 +1,1081 @@
+---
+title: "Employee Attrition Analaysis"
+author: "Pearly Merin Paul"
+date: "8/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Introduction 
+
+In the below report, we have been provided with the  data set `CaseStudy.csv` to analyze the factors that lead to attrition. Our team in DDS Analytics were asked to identify the top three factors that contribute to turnover .
+Our team had to do an exploratory Data Analysis on the data provided to come up with useful insights.
+Along with the base data we were provided datasheet `CaseStudy2CompSet No Attrition` 
+to use the models to predict Attrition
+
+And an another datasheet `CaseStudy2CompSet No Salary.csv` to predict the Monthly Income of the Employee.
+
+## Reproducible Research in R
+​
+Please begin by reading the the README.md.All the details on the structure of project has been documented.
+​
+### Loading Packages for Analysis
+Below are the packages required for the analysis of the Employee Attrition Analyis 
+
+```{r Packages}
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(Amelia) # Confirm missing value
+library(rpart)
+library(rattle)
+require(caTools)
+library(ggcorrplot)
+library(randomForest)
+library(randomForestSRC)
+library(corrplot)
+library(cowplot)
+library(class)
+library(caret)
+
+```
+## Loading all the datasheets for analysis 
+
+`CaseStudy.csv` : To perform exploratory Data analysis 
+`CaseStudy2CompSetNoSalary.csv` : To predict Salary
+`CaseStudy2CompSet No Attrition.csv`: To predict Attrition
+
+
+```{r}
+
+employee <- read.csv("CaseStudy.csv")
+
+employeeNoAttrition<-read.csv("data/CaseStudy2CompSet No Attrition.csv")
+employeeNoSalary<-read.csv("data/CaseStudy2CompSetNoSalary.csv")
+
+employeedata<-employee
+ employee <- select(employee,-c(ID, EmployeeCount, EmployeeNumber, Over18,StandardHours))
+
+employeetotal<-employee
+
+glimpse(employeetotal)
+employeetotal1<-filter(employeetotal,Attrition=="Yes")
+
+
+ 
+```
+
+## Overall Attrition Analysis
+
+### We are able to see the data seemed to be not even . MEaning the base data sheet that we were able to that percentage of Employees who were attrition was 83% and the percentage of the employees who were not was 16.1%
+```{r}
+
+dt <- employeedata%>%
+  dplyr::group_by(Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/sum(n))
+
+theme_set(theme_bw())  # pre-set the bw theme.
+ ggplot(data = dt,aes(x= Attrition, y = n))+ geom_bar(stat="identity",fill=c("blue","purple"))+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=.8), colour="white", size = 5)+theme(axis.text.x = element_text(angle = 90,hjust =0 )) + 
+   ggtitle("Overall Attrition")+ylab("Count Of Employees")
+```
+
+## Cleaning Of the data
+
+In this chunk we have done the data cleaning . HEre were have take the quantitative variables in the data and converted them into categorical variable by this we can get a better model and do exploratory data anlysis on the data.
+```{r}
+
+
+employeedata<-employee
+
+employeedata$Age <- cut(employeedata$Age,breaks=c(-Inf,20, 30, 40, 50, 60,Inf),labels=c("0-19 years","20-29 years","30-39 years","40-49 years","50-59 years","60 +"),right=FALSE)
+
+
+employeedata$DailyRate <- cut(employeedata$DailyRate,breaks=c(-Inf,500, 1000,1500, 2000,Inf),labels=c("0-499 Range","500-999 Range","1000-1499 Range","1500 + Range","60 +"),right=FALSE)
+
+
+employeedata$DistanceFromHome <- cut(employeedata$DistanceFromHome,breaks=c(-Inf,10, 20,30,Inf),labels=c("1-9 miles","20-29 miles","30-40 miles","40+ miles" ),right=FALSE)
+
+
+employeedata$MonthlyIncome <- cut(employeedata$MonthlyIncome,breaks=c(-Inf,5000, 10000,20000,Inf),labels=c("Low","Medium","Higher","Highest" ),right=FALSE)
+
+
+
+employeedata$HourlyRate <- cut(employeedata$HourlyRate,breaks=c(-Inf,50,100, Inf),labels=c("0-150 dollars","50-100 dollars","100+ dollars" ),right=FALSE)
+
+
+
+
+employeedata$MonthlyRate <- cut(employeedata$MonthlyRate,breaks=c(-Inf,5000, 10000,20000,Inf),labels=c("Low","Medium","Higher","Highest" ),right=FALSE)
+
+employeedata$YearsAtCompany <- cut(employeedata$YearsAtCompany,breaks=c(-Inf, 10,15,Inf),labels=c("1-9 years","10 -14 years","15 + years" ),right=FALSE)
+
+employeedata$TotalWorkingYears <- cut(employeedata$TotalWorkingYears,breaks=c(-Inf, 10,15,Inf),labels=c("1-9 years","10 -14 years","15 + years" ),right=FALSE)
+
+
+
+
+
+
+employeedata$Education=as.factor(if_else(employeedata$Education == 1,"Below College", if_else(employeedata$Education == 2, "College", if_else(employeedata$Education == 3, "Bachelor", if_else(employeedata$Education == 4, "Master","Doctor")))))
+
+employeedata$EnvironmentSatisfaction = as.factor(if_else(employeedata$EnvironmentSatisfaction == 1,"Low",if_else(employeedata$EnvironmentSatisfaction == 2, "Medium", if_else(employeedata$EnvironmentSatisfaction == 3, "High", "Very High"))))
+
+employeedata$JobInvolvement = as.factor(if_else(employeedata$JobInvolvement == 1,"Low",if_else(employeedata$JobInvolvement == 2, "Medium",if_else(employeedata$JobInvolvement == 3, "High", "Very High"))))
+
+
+employeedata$JobSatisfaction = as.factor(if_else(employeedata$JobSatisfaction == 1, "Low",if_else(employeedata$JobSatisfaction == 2, "Medium",if_else(employeedata$JobSatisfaction == 3, "High","Very High"))))
+
+employeedata$PerformanceRating = as.factor(if_else(employeedata$PerformanceRating == 1, "Low",if_else(employeedata$PerformanceRating == 2, "Good", if_else(employeedata$PerformanceRating == 3, "Excellent", "Outstanding"))))
+
+employeedata$RelationshipSatisfaction = as.factor(if_else(employeedata$RelationshipSatisfaction == 1, "Low",if_else(employeedata$RelationshipSatisfaction == 2, "Medium", if_else(employeedata$RelationshipSatisfaction == 3, "High", "Very High"))))
+
+ employeedata$WorkLifeBalance = as.factor(if_else(employeedata$WorkLifeBalance == 1, "Bad",if_else(employeedata$WorkLifeBalance == 2, "Good", if_else(employeedata$WorkLifeBalance == 3, "Better", "Best"))))
+ 
+ 
+ 
+employeedata$JobLevel = as.factor(if_else(employeedata$JobLevel == 1, "Low",if_else(employeedata$JobLevel == 2, "Medium",if_else(employeedata$JobLevel  == 3, "High","Very High"))))
+
+
+employeedata$YearsSinceLastPromotion = cut(employeedata$YearsSinceLastPromotion ,breaks=c(-Inf, 10,15,Inf),labels=c("1-9 years","10 -14 years","15 + years" ),right=FALSE)
+
+employeedata$PercentSalaryHike  = cut(employeedata$PercentSalaryHike  ,breaks=c(-Inf, 10,15,20,Inf),labels=c("1-9 percent","10 -14 percent","15 + percent","20+ percent" ),right=FALSE)
+
+employeedata$YearsInCurrentRole= cut(employeedata$YearsInCurrentRole ,breaks=c(-Inf, 10,15,20,Inf),labels=c("1-9 years","10 -14 years","15 + years","20+ years" ),right=FALSE)
+
+
+employeedata$YearsWithCurrManager= cut(employeedata$YearsWithCurrManager ,breaks=c(-Inf, 10,15,20,Inf),labels=c("1-9 years","10 -14 years","15 + years","20+ years" ),right=FALSE)
+
+
+
+employeedata$NumCompaniesWorked= cut(employeedata$NumCompaniesWorked ,breaks=c(-Inf, 3,6,9,Inf),labels=c("0-2 years","3-5 years","7-8 years","9+ years" ),right=FALSE)
+
+```
+
+## Correlation Plot
+
+Corelation plot between the various features provided in the datasheet.
+
+Upin analysis of the Pvalues of the features we are able to see that 
+
+JobLevel, OverTime and StockLevel Options
+``{r}
+
+employee_updated<-employee
+
+employee_updated$OverTime=as.numeric(as.factor(employee_updated$OverTime))
+employee_updated$Attrition=as.numeric(as.factor(employee_updated$Attrition))
+
+employee_updated$MaritalStatus=as.numeric(as.factor(employee_updated$MaritalStatus))
+employee_updated$BusinessTravel=as.numeric(as.factor(employee_updated$BusinessTravel))
+
+employee_updated$Department=as.numeric(as.factor(employee_updated$Department))
+
+employee_updated$JobRole=as.numeric(as.factor(employee_updated$JobRole))
+
+employee_updated$EducationField=as.numeric(as.factor(employee_updated$EducationField))
+
+employee_updated$Gender=as.numeric(as.factor(employee_updated$Gender))
+
+employee_updated$StockOptionLevel=as.numeric(as.factor(employee_updated$StockOptionLevel))
+corrplot( cor(as.matrix(employee_updated), method = "pearson", use = "complete.obs") ,is.corr = FALSE, type = "lower", order = "hclust", tl.col = "black", tl.srt = 360)
+library(ggcorrplot)
+corrplot(cor(employee_updated), order = "alphabet",method= "number", type = "full",
+         col = brewer.pal(n = 8, name = "RdBu"))
+
+
+ggcorrplot(cor(employee_updated),  hc.order = TRUE, type = "lower",method= "circle",
+  outline.color = "black",
+  ggtheme = ggplot2::theme_gray,
+  colors = c("#6D9EC1", "white", "#E46726")
+)
+
+ library(psych)
+ corr.test( employee_updated)
+```
+
+## Employee Attrition vs Environment Satisfaction
+```{r}
+dtEnv <- employeedata%>%
+  dplyr::group_by(EnvironmentSatisfaction,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ ggplot(data = dtEnv ,aes(x=EnvironmentSatisfaction , y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))
+
+
+```
+
+
+
+
+## 1. What are the major factors that impact employee Attrition and  income benefits of an employee
+Benefits of an employee play a major role in the employees attrition rate. An employee who is payed well tend to be more happy and stick with the company .
+
+## Employee Attrition vs Stock Option Level
+# Employees get either level 0 or 1 of the company stocks . Employees who were offered no stock opetions tend to quite the company. Giving stock option to an employee is beneficial. Because by giving stock options they are technically stake holders 
+
+
+
+```{r}
+dtStockLevel <- employeedata%>%
+  dplyr::group_by(StockOptionLevel,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p1<-ggplot(data = dtStockLevel,aes(x=StockOptionLevel, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Stock Option -Attrition Analysis")+ylab("Count Of Employees")
+
+ p1
+```
+
+## Employee Attrition vs Monthly Rate of Employee
+
+```{r}
+dtMonthlyRate <- employeedata%>%
+  dplyr::group_by(MonthlyRate,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p2<-ggplot(data = dtMonthlyRate,aes(x=MonthlyRate, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Monthly -Attrition Analysis")+ylab("Count Of Employees")
+
+p2
+```
+
+## Employee Attrition vs Hourly Rate of Employee
+
+```{r}
+dthour <- employeedata%>%
+  dplyr::group_by(HourlyRate,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p3<-ggplot(data =dthour,aes(x=HourlyRate, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Hourly Rate -Attrition Analysis")+ylab("Count Of Employees")
+
+
+p3
+```
+
+
+## Employee Attrition vs Monthly Income of an Employee
+
+```{r}
+dtIncome <- employeedata%>%
+  dplyr::group_by(MonthlyIncome,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+p5<- ggplot(data = dtIncome,aes(x= MonthlyIncome, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee Monthly Income-Attrition Analysis")+ylab("Count Of Employees")
+ 
+p5
+
+```
+## Employee Attrition vs Percentage of Salary Hike 
+
+### Upon analysing the Percent Salary Hike versus employees with highest Attrition has 10-14 % percentage hike. Employees with less hike in percentage,
+
+53.6% - falls in the 10-14% 
+
+
+```{r}
+dtHike <- employeedata%>%
+  dplyr::group_by(PercentSalaryHike,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+p6<- ggplot(data = dtHike ,aes(x= PercentSalaryHike, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee Salary Hike -Attrition Analysis")+ylab("Count Of Employees")
+ 
+p6
+
+```
+
+```{r}
+plot_grid(p1,p3,p5,p6, ncol = 3, nrow = 2)
+```
+
+# 2. Characteristics and Features of an Employee?
+
+
+## Analyse Attrition vs Years with current manager
+
+### Analyse Feature Years in Current Role verses the Attrition Rate of the employee. We are able to see that employees working with the same manager for 1-9 years have the higest attrition rate of 15.5%
+
+### YearsWithCurrManager : 96.4%
+
+```{r YearsWithCurrManager vs Attrition}
+dtCurrentManager <- employeedata%>%
+  dplyr::group_by(YearsWithCurrManager,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p8<-ggplot(data = dtCurrentManager,aes(x= YearsWithCurrManager , y = n,fill = Attrition))+ 
+   geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee Years with Current Manager -Attrition Analysis")+ylab("Count Of Employees")
+ 
+ p8
+```
+## Analyse Attrition vs Years in Current Role
+
+### Analyse Feature Years in Current Role verses the Attrition Rate of the employee. We are able to see that employees working with the same manager for 1-9 years have the higest attrition rate of 15.4%
+```{r}
+dtCurrentRole <- employeedata%>%
+  dplyr::group_by(YearsInCurrentRole,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+p9<- ggplot(data = dtCurrentRole,aes(x= YearsInCurrentRole , y = n,fill = Attrition))+ 
+   geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee Years In Current Role-Attrition Analysis")+ylab("Count Of Employees")
+ 
+p9
+```
+
+## Attrition vs Age of the employee
+### Upon analysing emplyees from the age from 30-39 years have higest attrition of 14.2%
+### 30-39 years : 38.6%
+
+
+```{r}
+dtAge <- employeedata%>%
+  dplyr::group_by(Age,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+p10<- ggplot(data = dtAge,aes(x= Age, y = n,fill = Attrition))+ 
+   geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee Age-Attrition Analysis")+ylab("Count Of Employees")
+ 
+p10
+```
+
+
+## Employee Attrition vs Gender of the employee
+```{r}
+dtGender <- employeedata%>%
+  dplyr::group_by(Gender,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p11<-ggplot(data = dtGender,aes(x=Gender , y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee Gender-Attrition Analysis")+ylab("Count Of Employees")
+
+ p11
+```
+
+
+## Employee Attrition vs Martial Status
+
+```{r}
+dtMaritial <- employeedata%>%
+  dplyr::group_by(MaritalStatus,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p12<-ggplot(data = dtMaritial,aes(x=MaritalStatus, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee MAritial Status-Attrition Analysis")+ylab("Count Of Employees")
+
+ p12
+
+```
+
+## Employee Attrition vs Total Working Years
+
+```{r}
+dtWork <- employeedata%>%
+  dplyr::group_by(TotalWorkingYears,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p13<-ggplot(data = dtWork ,aes(x= TotalWorkingYears
+, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Total Working Years -Attrition Analysis")+ylab("Count Of Employees")
+
+p13
+```
+
+## Employee Attrition vs Department
+## Most of the employees from the sales department have the highest attrition rate which would be 21.6%
+
+```{r}
+  dtDep <- employeedata%>%
+    dplyr::group_by(Department,Attrition)%>%
+    dplyr::tally()%>%
+    dplyr::mutate(percent=n/870)
+  
+  
+  p14<- ggplot(data = dtDep,aes(x= Department, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee Department -Attrition Analysis")+ylab("Count Of Employees")
+
+  p14
+
+```
+
+## Education vs the Attrition
+## Education level of an employee vs Attrition
+```{r}
+dtEduc <- employeedata%>%
+  dplyr::group_by(Education,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p15<-ggplot(data = dtEduc ,aes(x=Education, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Education Level Option -Attrition Analysis")+ylab("Count Of Employees")
+
+ p15
+```
+
+```{r}
+dtEducField <- employeedata%>%
+  dplyr::group_by(EducationField,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p16<-ggplot(data = dtEducField ,aes(x=EducationField, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Education Level Option -Attrition Analysis")+ylab("Count Of Employees")
+
+ p16
+```
+
+
+## Employee Attrition vs YEarsAtCompany
+```{r}
+dtYAtCompany <- employeedata%>%
+  dplyr::group_by(YearsAtCompany,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+p17<- ggplot(data = dtYAtCompany,aes(x= YearsAtCompany, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee Job Level -Attrition Analysis")+ylab("Count Of Employees")
+
+p17
+
+```
+
+
+## Employee Attrition vs "YearsSinceLastPromotion"
+
+```{r}
+dtPromo <- employeedata%>%
+  dplyr::group_by(YearsSinceLastPromotion,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+p18<- ggplot(data = dtPromo ,aes(x= YearsSinceLastPromotion, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee YEars Since Last Promotion -Attrition Analysis")+ylab("Count Of Employees")
+
+p18
+
+```
+
+
+## Employee Attrition vs ""RelationshipSatisfaction"
+"
+
+```{r}
+dtRelationshipsatisfaction <- employeedata%>%
+  dplyr::group_by(RelationshipSatisfaction,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/140)
+
+
+p19<- ggplot(data = dtRelationshipsatisfaction ,aes(x= RelationshipSatisfaction, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee YEars Since Last Promotion -Attrition Analysis")+ylab("Count Of Employees")
+
+p19
+
+```
+
+```{r}
+plot_grid(p8,p9,p10,p10,p11,p18,ncol = 3, nrow = 2)
+```
+
+
+## 3. What are relationship between Employee Attrition and the Employee work environment?
+
+
+
+## Employee Attrition vs Performance Rating
+## Most of the employees from the sales department have the highest attrition rate which would be 21.6%
+
+```{r}
+dtPerformance <- employeedata%>%
+  dplyr::group_by(PerformanceRating,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p23<-ggplot(data = dtPerformance,aes(x= PerformanceRating
+, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Performance Rating -Attrition Analysis")+ylab("Count Of Employees")
+p23
+
+```
+
+
+## Employee Attrition vs Overtime of the Employee
+
+```{r}
+dtOver <- employeedata%>%
+  dplyr::group_by(OverTime,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p24<-ggplot(data = dtOver ,aes(x=OverTime, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" OVerTime -Attrition Analysis")+ylab("Count Of Employees")
+p24
+```
+
+
+## Employee Attrition vs Job Involvement
+
+```{r}
+dtJobInv <- employeedata%>%
+  dplyr::group_by(JobInvolvement,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p25<-ggplot(data = dtJobInv ,aes(x=JobInvolvement , y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))
+
+p25
+```
+## Employee Attrition vs Bussiness Travel 
+```{r}
+dtbus <- employeedata%>%
+  dplyr::group_by(BusinessTravel,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/140)
+
+
+ p26<-ggplot(data = dtbus,aes(x=BusinessTravel , y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Business Travel -Attrition Analysis")+ylab("Count Of Employees")
+
+p26
+```
+
+
+
+## Employee Attrition vs Distance From Home
+
+
+```{r}
+dtdist <- employeedata%>%
+  dplyr::group_by(DistanceFromHome,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p27<-ggplot(data = dtdist,aes(x=DistanceFromHome, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))
+ 
+ p27
+
+
+```
+
+## Employee Attrition vs JobRole
+
+
+```{r}
+dtJobRole <- employeedata%>%
+  dplyr::group_by(JobRole,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/140)
+
+
+ p28<-ggplot(data = dtJobRole,aes(x=JobRole, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))
+
+ p28
+
+```
+
+
+
+## Employee Attrition vs JobLevel
+
+
+```{r}
+dtJoblevel <- employeedata%>%
+  dplyr::group_by(JobLevel,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+p29<- ggplot(data = dtJoblevel,aes(x=JobLevel, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))
+p29
+
+```
+
+
+## Employee Attrition vs EnvironmentSatisfaction
+
+### Environment Satisfaction
+# Environment Satisfaction might be affecting attrition as the lower the environment satisfaction rating, the higher the attrition rate.
+
+```{r}
+dtEnv <- employeedata%>%
+  dplyr::group_by(EnvironmentSatisfaction,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p30<-ggplot(data = dtEnv ,aes(x=EnvironmentSatisfaction, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))
+
+p30
+```
+
+## Employee Attrition vs Training Times Last year
+
+### Training Times Last year vs Employee Attrition
+
+
+### Employees with Training times less than 2 have more attrition  
+```{r}
+dttrain <- employeedata%>%
+  dplyr::group_by(TrainingTimesLastYear,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+ p31<-ggplot(data = dttrain ,aes(x=TrainingTimesLastYear, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))
+p31
+
+```
+## Employee Attrition vs "WorkLifeBalance"
+
+### Employees with Training times less than 2 have more attrition  
+```{r}
+dtWork<- employeedata%>%
+  dplyr::group_by(WorkLifeBalance,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/140)
+
+
+ p32<-ggplot(data = dttrain ,aes(x=TrainingTimesLastYear, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))
+
+p32
+```
+
+## Employee Attrition vs worklife balance 
+
+```{r}
+dtWorkLife <- employeedata%>%
+  dplyr::group_by(WorkLifeBalance,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+p33<-ggplot(data =dtWorkLife,aes(x= WorkLifeBalance, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Employee WorkLife BAlance -Attrition Analysis")+ylab("Count Of Employees")
+
+p33
+```
+
+
+## Employee Attrition vs Number of Companies Worked 
+
+```{r}
+dtCompanies <- employeedata%>%
+  dplyr::group_by(NumCompaniesWorked,Attrition)%>%
+  dplyr::tally()%>%
+  dplyr::mutate(percent=n/870)
+
+
+p34<-ggplot(data =dtCompanies,aes(x= NumCompaniesWorked, y = n,fill = Attrition))+ geom_bar(stat="identity")+geom_text(aes(label=paste0(sprintf("%1.1f", percent*100),"%")), position=position_stack(vjust=0.5), colour="white", size = 4)+theme(axis.text.x = element_text(angle = 90,hjust =0 ))+ggtitle(" Number of  Companies Worked -Attrition Analysis")+ylab("Count Of Employees")
+
+p34
+```
+
+
+
+```{r}
+plot_grid(p24,p26,p28,p29,p30,p31,p32,p33,p34,ncol = 3, nrow = 2)
+```
+
+
+## Based on the above analysis we are going to implement KNN model to predict Attrition 
+
+
+```{r, include=FALSE}
+# Change all character variables to factor
+employee_updated<-employee
+employee_updated$BusinessTravel <- as.integer(as.factor(employee_updated$BusinessTravel))
+employee_updated$Department<- as.integer(as.factor(employee_updated$Department))
+employee_updated$EducationField <- as.integer(as.factor(employee_updated$EducationField))
+employee_updated$Gender <- as.integer(as.factor(employee_updated$Gender))
+employee_updated$JobRole <- as.integer(as.factor(employee_updated$JobRole))
+employee_updated$MaritalStatus <- as.integer(as.factor(employee_updated$MaritalStatus))
+employee_updated$OverTime <- as.integer(as.factor(employee_updated$OverTime))
+employee_updated$StockOptionLevel<- as.integer(as.factor(employee_updated$StockOptionLevel))
+
+employee_updated$JobLevel<- as.integer(as.factor(employee_updated$JobLevel))
+```
+
+Apply the three main factors with kNN technique to create an Attrition Prediction model
+
+Upon implementing the KNN model to predict attrition we were able to get 82% accuracy and  low pvalue 1.265e-07
+## Because of the accuracy we are not using this model to predict Attrition
+
+```{r}
+set.seed(8)
+splitPerc = .7
+KNNdata <- subset(employee_updated, select = c(Attrition,StockOptionLevel, OverTime,JobLevel,Gender,JobRole,Department,MaritalStatus))
+
+trainIndices = sample(1:dim(KNNdata)[1], round(splitPerc * dim(KNNdata)[1]))
+train.Attrition = KNNdata[trainIndices,]
+test.Attrition = KNNdata[-trainIndices,]
+# run knn
+classifications = knn(train.Attrition[,c(2:8)], test.Attrition[,c(2:8)], train.Attrition$Attrition, prob = TRUE, k = 21)
+# Confusion Matrix
+confusionMatrix(table(test.Attrition$Attrition, classifications))
+# Find Sensitivity and Specificity for Train Set
+classifications_train = knn(train.Attrition[,c(2:8)], train.Attrition[,c(2:8)], train.Attrition$Attrition, prob = TRUE, k = 5)
+confusionMatrix(table(train.Attrition$Attrition, classifications_train))
+```
+
+Loop for many k and one training / test partition
+```{r}
+accs = data.frame(accuracy = numeric(30), k = numeric(30))
+for(i in 1:30)
+{
+  classifications = knn(train.Attrition[,c(2:6)], test.Attrition[,c(2:6)], train.Attrition$Attrition, prob = TRUE, k = i)
+  table(test.Attrition$Attrition, classifications)
+  CM = confusionMatrix(table(test.Attrition$Attrition, classifications))
+  accs$accuracy[i] = CM$overall[1]
+  accs$k[i] = i
+}
+plot(accs$k,accs$accuracy, type = "l", xlab = "k")
+```
+## Leave one out to predict 
+```{r, include=FALSE}
+# Loop for many k and the average of many training / test partition
+iterations = 500
+numks = 30
+masterAcc = matrix(nrow = iterations, ncol = numks)
+   masterSensitivity= matrix(nrow = iterations, ncol = numks)
+  masterSpecificity= matrix(nrow = iterations, ncol = numks)
+for(j in 1:iterations)
+{
+accs = data.frame(accuracy = numeric(30), k = numeric(30))
+trainIndices = sample(1:dim(KNNdata)[1], round(splitPerc * dim(KNNdata)[1]))
+train.Attrition = KNNdata[trainIndices,]
+test.Attrition = KNNdata[-trainIndices,]
+for(i in 1:numks)
+{
+  classifications = knn(train.Attrition[,c(2:6)], test.Attrition[,c(2:6)], train.Attrition$Attrition, prob = TRUE, k = i)
+  table(classifications,test.Attrition$Attrition)
+  CM = confusionMatrix(table(test.Attrition$Attrition, classifications))
+  masterAcc[j,i] = CM$overall[1]
+  masterSensitivity[j,i]=CM$byClass[1]
+   masterSpecificity[j,i]=CM$byClass[2]
+}
+}
+MeanAcc = colMeans(masterAcc)
+MeanSensitivity=colMeans(masterSensitivity)
+MeanSpecificity=colMeans(masterSpecificity)
+plot(seq(1,numks,1),MeanAcc,type = "l")
+
+plot(seq(1,numks,1), MeanSpecificity,type = "l")
+
+plot(seq(1,numks,1),MeanSensitivity,type = "l")
+```
+
+
+```{r}
+employeeRF<-employee_updated
+employeeRF$Attrition <- factor(employeeRF$Attrition,levels = c('Yes','No'), labels = c('Yes','No'))
+set.seed(8)
+splitPerc = .7
+
+trainIndices = sample(1:dim(employeeRF)[1], round(splitPerc * dim(employeeRF)[1]))
+train.Attrition = employeeRF[trainIndices,]
+test.Attrition = employeeRF[-trainIndices,]
+
+
+## Upon usig the below sample size we were able to get Accuracy 81%,Sensitivity 72% and Specificity 83%
+employeeRFmodel<-randomForest(Attrition ~ .,data=train.Attrition, strata=train.Attrition$Attrition,sampsize=c(60,60))
+
+
+rfpredict <- predict(employeeRFmodel , test.Attrition)
+
+confusionMatrix.random.Forrest <- confusionMatrix(rfpredict, test.Attrition $Attrition)
+confusionMatrix.random.Forrest
+
+varImp(employeeRFmodel)
+
+
+varImpPlot(employeeRFmodel)
+
+
+##employeeRFmodel1<-randomForest(Attrition ~ .-c(MonthlyRate),data=train.Attrition, strata=train.Attrition$Attrition,sampsize=c(90,90))
+
+
+
+#varImpPlot(employeeRFmodel1)
+#rfpredict1 <- predict(employeeRFmodel1,test.Attrition)
+
+#confusionMatrix.random.Forrest <- confusionMatrix(rfpredict1,test.Attrition$Attrition)
+#confusionMatrix.random.Forrest
+
+
+
+
+```
+
+
+## EDA for Employee monthly Income Analysis vs Features 
+
+
+```{r}
+employeemonthly<-employee
+
+
+# 
+# ggplot(data=employeemonthly,aes(x=MonthlyIncome,y=Age))+geom_point(color="blue")+ggtitle("Employee Monthly Income vs Age")
+# 
+# 
+# ggplot(data=employeemonthly,aes(x=MonthlyIncome,y=TotalWorkingYears))+geom_point(color="red")+ggtitle("Employee Monthly Income vs Years Of Experience")
+# 
+# 
+# ggplot(data=employeemonthly,aes(x=MonthlyIncome,y=YearsAtCompany))+geom_point(color="green")+ggtitle("Employee Monthly Income vs Years At Company")
+# 
+# 
+# 
+# ggplot(data=employeemonthly,aes(x=MonthlyIncome,y=JobLevel))+geom_point(color="plum")+ggtitle("Employee Monthly Income vs Job Level")
+# 
+# 
+# ggplot(employeemonthly,aes(y=employeemonthly,x=Age,color=TotalWorkingYears))+geom_point()
+# 
+# 
+# plot_grid(s1,s2,s3,s4,ncol=2,nrow=2)
+
+
+
+
+```
+
+## Random Forest for Employee Attrition Prediction
+
+```{r}
+employeemonthly<-employee_updated
+
+
+
+set.seed(8)
+splitPerc = .7
+
+trainIndices = sample(1:dim(employeemonthly)[1], round(splitPerc * dim(employeemonthly)[1]))
+train.Income = employeemonthly[trainIndices,]
+test.Income = employeemonthly[-trainIndices,]
+
+
+
+employeeSalaryPred<-lm(MonthlyIncome ~ Age+TotalWorkingYears+YearsAtCompany+JobLevel,data=train.Income)
+
+
+PredictSal<-predict(employeeSalaryPred,test.Income)
+
+table(RMSE(test.Income$MonthlyIncome,PredictSal))
+
+plot(employeeSalaryPred)
+
+plot(test.Income$MonthlyIncome,PredictSal,type="p",main="Monthly Income Prediction")
+
+
+
+plot(test.Income$MonthlyIncome)
+
+
+
+```
+
+
+
+## Write attrition predicted values for 'CaseStudy2CompSet No Attrition.csv' to csv File
+```{r}
+# Read in 'No Attrition' file
+
+
+employeeRF1<-employee_updated
+employeeNoAttrition
+
+employeeRF1$Attrition<-as.factor(employeeRF1$Attrition)
+
+rfPredictOriginal=randomForest(Attrition ~ .,data=employeeRF1,strata=employee$Attrition,sampsize=c(60,60))
+
+pred<-predict(rfPredictOriginal,employeeNoAttrition)
+
+Attrition_Pred<-as.data.frame(pred)
+
+
+ID<-as.data.frame(employeeNoAttrition$ID)
+
+Data_Updated<-cbind(Attrition_Pred,ID)
+
+
+Attrition_Pred_updated<- merge(x = employeeNoAttrition, y = Data_Updated,
+                          by.x = "ID", by.y = "employeeNoAttrition$ID", all = TRUE)
+
+
+Attrition_Pred_updated$pred
+
+colnames(Attrition_Pred_updated)[36] <- "Attrition"
+
+# Write to file
+write.csv(Attrition_Pred_updated, "case_Study_Updated_Attrition_output", row.names = FALSE, quote=FALSE)
+```
+
+
+
+## Write attrition predicted values for 'CaseStudy2CompSet No Attrition.csv' to csv File
+
+Here we have used the Random Forrest model to predict the attrition of the employeess
+```{r}
+# Read in 'No Attrition' file
+
+
+employeeRF1<-employee_updated
+employeeNoAttrition
+
+employeeRF1$Attrition<-as.factor(employeeRF1$Attrition)
+
+rfPredictOriginal=randomForest(Attrition ~ .,data=employeeRF1,strata=employee$Attrition,sampsize=c(60,60))
+
+pred<-predict(rfPredictOriginal,employeeNoAttrition)
+
+Attrition_Pred<-as.data.frame(pred)
+cbind(Attrition_Pred,ID)
+
+ID<-as.data.frame(employeeNoAttrition$ID)
+
+Data_Updated<-mutate(Attrition_Pred,ID)
+
+Attrition_Pred_updated<- merge(x = employeeNoAttrition, y = Data_Updated,
+                          by.x = "ID", by.y = "employeeNoAttrition$ID", all = TRUE)
+
+
+Attrition_Pred_updated$pred
+
+colnames(Attrition_Pred_updated)[36] <- "Attrition"
+
+# Write to file
+write.csv(Attrition_Pred_updated, "Case2PredictionsPearly_PaulAttrition.csv", row.names = FALSE, quote=FALSE)
+```
+
+
+## Write predicted salary values to a csv.
+
+Here we have used Multiple Linear regression to predict the salary of the employee
+```{r}
+# Read in 'No Attrition' file
+
+
+employeelinear<-employee_updated
+employeeNoSalary
+
+employeelinear$Attrition<-as.factor(employeelinear$Attrition)
+
+employeeSalaryPred1<-lm(MonthlyIncome ~ Age+TotalWorkingYears+YearsAtCompany+JobLevel,data=employeelinear)
+
+
+PredictSalary<-predict(employeeSalaryPred1,employeeNoSalary)
+
+SalaryPred<-as.data.frame(PredictSalary)
+
+ID_updated<-as.data.frame(employeeNoSalary$ID)
+
+Salary_pred_updated<-cbind(SalaryPred,ID_updated)
+
+
+
+Salary_Pred_updated<- merge(x = Salary_pred_updated, y = employeeNoSalary,
+                          by.x = "employeeNoSalary$ID", by.y = "ID", all = TRUE)
+
+
+
+colnames(Salary_Pred_updated)[2] <- "Monthly_Income"
+
+# Write to file
+write.csv(Salary_Pred_updated,"Case2PredictionsPearlyPaulSalary.csv",row.names = FALSE, quote=FALSE)
+```
+
+## Conclusion
+
+
+### Age 
+Attrition Rate is higest among people who belong to  the age group of 30 - 39 years
+By this we can conclude that employees who have maximum attrition rate are young
+
+### Total Working Years
+Employees who have less total working experience between 1-9 years have higher attrition rate
+HR needs to overlook why young employees have higher attrition rate.
+
+
+#### Employees' benefits ####
+
+Salary plays a major influencing factor to attrition
+Salary scale varies with the job level
+
+
+### Stock Option Levels
+Employees who  dont receive stocks have the higer attrition rate . Providing stocks from the company employees are forced to stay .So providing Stock level options to junior employees would help.
+
+
+#### Employees' situations in the company ####
+
+### Overtime
+Overtime is the most influential factor of attrition. Around 75% of the employees work overtime. Employees who work overtime tend to quite.
+Manager should be adjusting the work time so that employees are not overloaded with work.
+
+
+### Job Roles
+We were able to observe that half of the employees as Lab Technicians were quiting. Possible due to the over time.
+
+### Overtime & Department & JobLevel & JobRole & BusinessTravel
+
+People who work overtime have the highest Attrition rate and belong to the Research and Sales Department. These employees travel rarely and work low level jobs
+
+### Years at the Company 
+Employees with higher attrition rate work in the company for around 1-9 years
+
+### Years in Current Role
+Most of the employees who leave the company has very less experience in the current role
+
+
+
+#### Environment Satisfaction 
+Employees with low environment satisfication have higher attrition rate.
+
+
+
+### Most Factors that impact Attrition
+
+ 1) Employees’ background 
+ Working experience
+## 2) Employees’ working Environment
+a) Working overtime
+ 
+c) Job levels
+3) Employees’ benefits
+  a) Salary
+ b) Stock options
+
+
+## RECOMMENDATIONS FROM DDS ANALYTICS :
+
+1) Career counseling and coaching should be provided for new employees
+2) Junior Employees should be getting Stock Options as part of their salary package.
+3) Employees should not be overloaded by extra work that they are forced to do Overtime
+4) Company Promotion criteria should be reviewed regularly at least  on a yearly basis.
+5) Working environment should be improved . Employees should be able to work were they feel comfortable whether it is the office or at home.
+6)We would recommend HR to analyze the Employees in the Research/Sales Department to check if there are any environment issues or work issues that is causing employees to leave the company.
+
+
+
+```{r}
+
+```

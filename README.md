@@ -16,7 +16,6 @@ Our github profile is organized in the below structure.
   - **[/Employee_Attrition_Analysis_Final.html] This is the Final EDA report in html format. This report can be opened in any browser and  has both the code and output knitted in a stylish format.
   - **[/EMPLOYEE_ATTRITION_ANALYSIS.pptx]
   - This is the powerpoint presentation that was prepared to present the insights we found while analysis to the clients.
-  - **[/Craft Beer Breweries_PDF.pdf](https://github.com/pearlypaul2712/Craft-Beer-and-Breweries-Study/blob/604c96184cfab8d25160fe830e9686f7daf0a2e9/Craft%20Beer%20Breweries_PDF.pdf)** :This is the Final EDA in pdf format. This pdf file contains the well documented and commented code and output.
 
 
 
